@@ -1,0 +1,173 @@
+---
+title: "Results for MSE defined by r"
+author: "Yuying Tan"
+date: "4/4/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+```{r, include=FALSE}
+load('bvmddata.RData')
+library(maditr)
+library(Johnson)
+library(rstatix)
+library(ggpubr)
+library(tidyverse)
+library(LambertW)
+library(xtable)
+```
+
+The true synchrony is defined as the values of r.
+
+# General results
+
+```{r}
+bvmddata[,3]<-factor(bvmddata[,3],levels=c('rlow','ravg',"rhigh"))
+bvmddata$timelength <- factor(bvmddata$timelength,levels=c('1006','10054'))
+bvmddata$synchr_method <- factor(bvmddata$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'))
+bvmddata$synchr_method <- factor(bvmddata$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'),labels=c('coherence','phase synchrony','KL','R(01)','R(05)','R(09)','JS','JR(2)','JR(6)','JR(10)','MI'))
+
+```
+
+```{r}
+bvmddata %>%
+  group_by(synchr_method) %>%
+  summarise(mean_MSE=mean(MSE)) %>%
+  arrange(mean_MSE)
+```
+
+# Overall influnece of data characteristics
+
+```{r}
+maineffects_truesynchrony <- bvmddata %>%
+  group_by(synchr_method,true_synchrony)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_kappa <- bvmddata %>%
+  group_by(synchr_method,kappa)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_tlag <- bvmddata %>%
+  group_by(synchr_method,tlag)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_timelength <- bvmddata %>%
+  group_by(synchr_method,timelength)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_noiselevel <- bvmddata %>%
+  group_by(synchr_method,noiselevel)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_noisetype <- bvmddata %>%
+  group_by(synchr_method,noisetype)  %>%
+  summarise(mean_MSE=mean(MSE))
+colnames(maineffects_kappa)[2] <- 'level'
+colnames(maineffects_truesynchrony)[2] <- 'level'
+colnames(maineffects_timelength)[2] <- 'level'
+colnames(maineffects_noiselevel)[2] <- 'level'
+colnames(maineffects_noisetype)[2] <- 'level'
+colnames(maineffects_tlag)[2] <- 'level'
+
+maineffects <- rbind(maineffects_truesynchrony,maineffects_kappa,maineffects_tlag,maineffects_timelength,maineffects_noiselevel,maineffects_noisetype)
+a <- rbind(dcast(maineffects_kappa, level ~  synchr_method),
+dcast(maineffects_truesynchrony, level ~  synchr_method),
+dcast(maineffects_timelength, level ~  synchr_method),
+dcast(maineffects_noiselevel, level ~  synchr_method),
+dcast(maineffects_noisetype, level ~  synchr_method),
+dcast(maineffects_tlag, level ~  synchr_method))
+factor <- c('kappa','kappa','kappa','true_synchrony','true_synchrony','true_synchrony','timelength','timelength','noiselevel','noiselevel','noisetype','noisetype','tlag','tlag')
+a <- cbind(factor,a)
+a1 <- rowMeans(a[,3:12])
+a2 <- rowMeans(a[,3:13])
+options(digits = 2)
+charac <- cbind(a,a1,a2)
+print(xtable(charac, type = "latex"), file = "characteristics_MSEbr.tex",include.rownames = F)
+
+```
+
+
+# Mixed ANOVA
+
+
+```{r}
+bvmddata %>%
+  group_by(synchr_method) %>%
+  levene_test(MSE~kappa*true_synchrony*noisetype*tlag*timelength*noiselevel)
+
+
+```
+```{r}
+
+hist(bvmddata[bvmddata$synchr_method!='MI',]$MSE)
+#hist(bvmddatatry[bvmddatatry$synchr_method!='MI',]$MSEt)
+#hist(bvmddatatry[bvmddatatry$synchr_method!='MI',]$MSEt1)
+
+```
+
+
+
+```{r}
+Sevenway <- anova_test(
+  data = bvmddata, dv = MSE, wid = id,
+  between = c(true_synchrony,kappa,tlag,timelength,noiselevel,noisetype), within = synchr_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,get_anova_table(Sevenway)$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+effects[1:10,]
+```
+# Interpretation
+
+
+### Interaction between 'true_synchrony', 'timelength' and 'synchr_method'
+
+Excluding mutual information:
+
+'timelength' is equal to '1006':
+
+```{r}
+bvmddata3 <- bvmddata[bvmddata$timelength=='1006',]
+
+bvmddata4 <- bvmddata3[bvmddata3$synchr_method!='MI',]
+data2 <- bvmddata4 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE))
+data2 %>% 
+  ggplot() +
+   aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+   geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+
+  scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+
+  scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+
+  scale_x_discrete('True synchrony',labels=c('low','avg','high'),limits=c('rlow','ravg','rhigh'))
+
+```
+
+'timelength' is equal to '10054':
+
+```{r}
+bvmddata5 <- bvmddata[bvmddata$timelength=='10054',]
+
+bvmddata6 <- bvmddata5[bvmddata5$synchr_method!='MI',]
+data2 <- bvmddata6 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE))
+data2 %>% 
+  ggplot() +
+   aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+   geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+
+  scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+
+  scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+
+  scale_x_discrete('True synchrony',labels=c('low','avg','high'),limits=c('rlow','ravg','rhigh'))
+
+```
+

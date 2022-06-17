@@ -1,0 +1,82 @@
+---
+title: "Appendix"
+author: "Yuying Tan"
+date: "6/13/2022"
+output: html_document
+---
+
+
+
+```{r}
+load('bvmddata.RData')
+colnames(bvmddata)[2:8] <- c('synchrony_method','true_synchrony','kappa','time_lag','time_length','noise_level', 'noise_type')
+library(xtable)
+Sevenway <- anova_test(
+  data = bvmddata, dv = MSE, wid = id,
+  between = c(true_synchrony,kappa,time_lag,time_length,noise_level,noise_type), within = synchrony_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,Sevenway$ANOVA$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+print(xtable(effects, type = "latex"), file = "ANOVA_MSEbr.tex",include.rownames = F)
+
+```
+
+```{r}
+Sevenway <- anova_test(
+  data = bvmddata, dv = MSE_c, wid = id,
+  between = c(true_synchrony,kappa,time_lag,time_length,noise_level,noise_type), within = synchrony_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,Sevenway$ANOVA$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+print(xtable(effects, type = "latex"), file = "ANOVA_MSEbc.tex",include.rownames = F)
+
+```
+
+
+```{r}
+Sevenway <- anova_test(
+  data = bvmddata, dv = correlation, wid = id,
+  between = c(true_synchrony,kappa,time_lag,time_length,noise_level,noise_type), within = synchrony_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,Sevenway$ANOVA$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+print(xtable(effects, type = "latex"), file = "ANOVA_corbr.tex",include.rownames = F)
+
+```
+
+```{r}
+Sevenway <- anova_test(
+  data = bvmddata, dv = correlation_c, wid = id,
+  between = c(true_synchrony,kappa,time_lag,time_length,noise_level,noise_type), within = synchrony_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,Sevenway$ANOVA$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+print(xtable(effects, type = "latex"), file = "ANOVA_corbc.tex",include.rownames = F)
+
+```
+
+

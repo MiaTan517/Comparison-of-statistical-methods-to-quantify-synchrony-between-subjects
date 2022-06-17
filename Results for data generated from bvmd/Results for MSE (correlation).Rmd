@@ -1,0 +1,184 @@
+---
+title: "Results for MSE defined by correlation"
+author: "Yuying Tan"
+date: "4/4/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+```{r, include=FALSE}
+load('bvmddata.RData')
+library(maditr)
+library(Johnson)
+library(rstatix)
+library(ggpubr)
+library(tidyverse)
+```
+
+The true synchrony is defined as the values of correlation.
+
+# General results
+```{r}
+bvmddata[,3]<-factor(bvmddata[,3],levels=c('rlow','ravg',"rhigh"))
+bvmddata$timelength <- factor(bvmddata$timelength,levels=c('1006','10054'))
+bvmddata$synchr_method <- factor(bvmddata$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'))
+bvmddata$synchr_method <- factor(bvmddata$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'),labels=c('coherence','phase synchrony','KL','R(01)','R(05)','R(09)','JS','JR(2)','JR(6)','JR(10)','MI'))
+```
+
+```{r}
+bvmddata %>%
+  group_by(synchr_method) %>%
+  summarise(mean_MSE=mean(MSE_c)) %>%
+  arrange(mean_MSE)
+```
+# Overall influnece of data characteristics
+
+
+```{r}
+maineffects_truesynchrony <- bvmddata %>%
+  group_by(synchr_method,true_synchrony)  %>%
+  summarise(mean_MSE=mean(MSE_c))
+
+maineffects_kappa <- bvmddata %>%
+  group_by(synchr_method,kappa)  %>%
+  summarise(mean_MSE=mean(MSE_c))
+
+maineffects_tlag <- bvmddata %>%
+  group_by(synchr_method,tlag)  %>%
+  summarise(mean_MSE=mean(MSE_c))
+
+maineffects_timelength <- bvmddata %>%
+  group_by(synchr_method,timelength)  %>%
+  summarise(mean_MSE=mean(MSE_c))
+
+maineffects_noiselevel <- bvmddata %>%
+  group_by(synchr_method,noiselevel)  %>%
+  summarise(mean_MSE=mean(MSE_c))
+
+maineffects_noisetype <- bvmddata %>%
+  group_by(synchr_method,noisetype)  %>%
+  summarise(mean_MSE=mean(MSE_c))
+colnames(maineffects_kappa)[2] <- 'level'
+colnames(maineffects_truesynchrony)[2] <- 'level'
+colnames(maineffects_timelength)[2] <- 'level'
+colnames(maineffects_noiselevel)[2] <- 'level'
+colnames(maineffects_noisetype)[2] <- 'level'
+colnames(maineffects_tlag)[2] <- 'level'
+
+maineffects <- rbind(maineffects_truesynchrony,maineffects_kappa,maineffects_tlag,maineffects_timelength,maineffects_noiselevel,maineffects_noisetype)
+a <- rbind(dcast(maineffects_kappa, level ~  synchr_method),
+dcast(maineffects_truesynchrony, level ~  synchr_method),
+dcast(maineffects_timelength, level ~  synchr_method),
+dcast(maineffects_noiselevel, level ~  synchr_method),
+dcast(maineffects_noisetype, level ~  synchr_method),
+dcast(maineffects_tlag, level ~  synchr_method))
+factor <- c('kappa','kappa','kappa','true_synchrony','true_synchrony','true_synchrony','timelength','timelength','noiselevel','noiselevel','noisetype','noisetype','tlag','tlag')
+a <- cbind(factor,a)
+a
+rowMeans(a[,3:12])
+rowMeans(a[,3:13])
+options(digits = 3)
+```
+
+
+# Mixed ANOVA
+Significant effects with generalized effect size greater than 0.5 are discussed.
+
+```{r}
+Sevenway <- anova_test(
+  data = bvmddata, dv = MSE_c, wid = id,
+  between = c(true_synchrony,kappa,tlag,timelength,noiselevel,noisetype), within = synchr_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,get_anova_table(Sevenway)$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+effects[1:18,]
+```
+
+### Interaction between 'synchr_method' and 'timelength'
+Including mutual information:
+
+
+
+Excluding mutual information:
+
+
+```{r}
+bvmddata2 <- bvmddata[bvmddata$synchr_method!='MI',]
+data2 <- bvmddata2 %>% 
+  group_by(synchr_method,timelength) %>% 
+  summarise(y_mean = mean(MSE_c))
+data2 %>% 
+  ggplot() +
+   aes(x = timelength, y = y_mean, group = synchr_method) +
+   geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+xlab('Time length')
+```
+
+
+### Interaction between 'true_synchrony', 'kappa' and 'synchr_method'
+
+Excluding mutual information:
+
+'kappa' is equal to 0.5:
+
+
+```{r}
+bvmddata3 <- bvmddata[bvmddata$kappa=='0.5',]
+
+bvmddata4 <- bvmddata3[bvmddata3$synchr_method!='MI',]
+data2 <- bvmddata4 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE_c))
+data2 %>% 
+   ggplot() +
+   aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+   geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+xlab('True synchrony')+scale_x_discrete('True synchrony',labels=c('low','avg','high'),limits=c('rlow','ravg','rhigh'))+ylim(0,0.5)
+```
+
+'kappa' is equal to 1:
+
+```{r}
+bvmddata5 <- bvmddata[bvmddata$kappa=='1',]
+
+bvmddata6 <- bvmddata5[bvmddata5$synchr_method!='MI',]
+data2 <- bvmddata6 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE_c))
+data2 %>% 
+   ggplot() +
+   aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+   geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+xlab('Time length')+xlab('True synchrony')+scale_x_discrete('True synchrony',labels=c('low','avg','high'),limits=c('rlow','ravg','rhigh'))+ylim(0,0.5)
+```
+
+'kappa' is equal to 2:
+
+
+```{r}
+bvmddata7 <- bvmddata[bvmddata$kappa=='2',]
+
+bvmddata8 <- bvmddata7[bvmddata7$synchr_method!='MI',]
+data2 <- bvmddata8 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE_c))
+data2 %>% 
+  ggplot() +
+   aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+   geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+xlab('Time length')+xlab('True synchrony')+scale_x_discrete('True synchrony',labels=c('low','avg','high'),limits=c('rlow','ravg','rhigh'))+ylim(0,0.5)
+```
+
+
+

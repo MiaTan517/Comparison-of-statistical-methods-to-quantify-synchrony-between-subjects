@@ -1,0 +1,246 @@
+---
+title: "Results (MSE) for henon maps with true synchrony defined by coupling strength"
+author: "Yuying Tan"
+date: "3/30/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(maditr)
+load('datahenon.RData')
+library(Johnson)
+library(rstatix)
+library(ggpubr)
+library(tidyverse)
+```
+
+The true synchrony is defined as the values of the coupling strength.
+
+
+```{r}
+datahenon[,2]<-factor(datahenon[,2],levels=c('rlow','ravg',"rhigh"))
+datahenon$timelength <- factor(datahenon$timelength,levels=c('1006','10054'))
+datahenon$synchr_method <- factor(datahenon$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'))
+datahenon$synchr_method <- factor(datahenon$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'),labels=c('coherence','phase synchrony','KL','R(01)','R(05)','R(09)','JS','JR(2)','JR(6)','JR(10)','MI'))
+```
+
+# General results
+
+
+```{r}
+datahenon %>%
+  group_by(synchr_method) %>%
+  summarise(mean_MSE=mean(MSE)) %>%
+  arrange(mean_MSE)
+
+```
+
+# Overall influnece of data characteristics
+
+```{r}
+maineffects_truesynchrony <- datahenon %>%
+  group_by(synchr_method,true_synchrony)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_bd <- datahenon %>%
+  group_by(synchr_method,bd)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_tlag <- datahenon %>%
+  group_by(synchr_method,tlag)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_timelength <- datahenon %>%
+  group_by(synchr_method,timelength)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_noiselevel <- datahenon %>%
+  group_by(synchr_method,noiselevel)  %>%
+  summarise(mean_MSE=mean(MSE))
+
+maineffects_noisetype <- datahenon %>%
+  group_by(synchr_method,noisetype)  %>%
+  summarise(mean_MSE=mean(MSE))
+colnames(maineffects_bd)[2] <- 'level'
+colnames(maineffects_truesynchrony)[2] <- 'level'
+colnames(maineffects_timelength)[2] <- 'level'
+colnames(maineffects_noiselevel)[2] <- 'level'
+colnames(maineffects_noisetype)[2] <- 'level'
+colnames(maineffects_tlag)[2] <- 'level'
+
+maineffects <- rbind(maineffects_truesynchrony,maineffects_bd,maineffects_tlag,maineffects_timelength,maineffects_noiselevel,maineffects_noisetype)
+a <- dcast(maineffects, level ~  synchr_method)
+factor <- c('true_synchrony','true_synchrony','true_synchrony','bd','bd','tlag','tlag','timelength','timelength','noiselevel','noiselevel','noisetype','noisetype')
+a <- cbind(factor,a)
+a
+```
+
+# Mixed ANOVA
+The MSEs are highly skewed. After many attempts, the transformed data still significantly violates the assumptions for mixed ANOVA. Thus, for MSEs, no transformation is implemented.
+
+```{r}
+datahenon_withoutmutual <- datahenon[datahenon$synchr_method!='mutual_information',]
+hist(datahenon_withoutmutual$MSE,main='MSE expect mutual information')
+```
+
+Significant effects with generalized effect size greater than 0.75 are discussed.
+
+```{r}
+Sevenway <- anova_test(
+  data = datahenon, dv = MSE, wid = id,
+  between = c(true_synchrony,bd,tlag,timelength,noiselevel,noisetype), within = synchr_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,get_anova_table(Sevenway)$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+effects[1:18,]
+```
+# Interpretation
+### Interaction between 'timelength' and 'synchr_method'
+
+
+Including mutual information:
+
+```{r}
+
+data1 <- datahenon %>% 
+  group_by(synchr_method,timelength) %>% 
+  summarise(y_mean = mean(MSE))
+#data1$timelength <- factor(data1$timelength,levels=c('1006','10054'))
+data1 %>% 
+  ggplot() +
+  aes(x = timelength, y = y_mean, group = synchr_method) +
+  geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+xlab('Time length')+scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')
+```
+Excluding mutual information:
+
+```{r}
+datahenon2 <- datahenon[datahenon$synchr_method!='MI',]
+data1 <- datahenon2 %>% 
+  group_by(synchr_method,timelength) %>% 
+  summarise(y_mean = mean(MSE))
+
+#data1 %>% 
+ # ggplot() +
+  #aes(x = timelength, y = y_mean, color = synchr_method) +
+#  geom_line(aes(group = synchr_method))+
+#  ylab('Mean of MSEs')+scale_color_manual(values=c('black','tomato2','tomato4','red','blue','hotpink1','orange','purple','pink','green'),name='Synchrony method',labels=c('coherence','JR2','JR6','JR10','JS','KL','phase synchrony','R01','R05','R09'),breaks=c('coherence','JensenRenyi2','JensenRenyi6','JensenRenyi10','JensenShannon','Kullback','phasesynchrony','Renyi01','Renyi05','Renyi09'))+xlab('Time length')
+#+  scale_linetype_manual(values=c("twodash", "dotted","dotted","dotted","dotted","dotted","dotted","dotted","dotted","dotted"))
+data1 %>% 
+  ggplot() +
+  aes(x = timelength, y = y_mean, group = synchr_method) +
+  geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple'),name='Synchrony method')+xlab('Time length')+scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted"),name='Synchrony method')
+
+```
+
+
+
+
+
+
+
+
+### 	Interaction between 'true_synchrony', 'noiselevel' and 'synchr_method'
+Interaction between the true synchrony levels and the synchrony methods has difference when comparing data with lower noise level versus higher noise level. The patterns are mainly different for coherence and phase coherence.
+
+Including mutual information:
+
+'noiselevel' is 0.2:
+
+```{r}
+datahenon3 <- datahenon[datahenon$noiselevel=='0.2',]
+data3 <- datahenon3 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE))
+data3 %>% 
+  ggplot() +
+  aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+  geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+
+  scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+
+  scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+
+  xlab('True synchrony')+scale_x_discrete('True synchrony',labels=c('low','avg','high'))+ylim(0,115)
+
+
+```
+'noiselevel' is 0.5:
+
+```{r}
+datahenon4 <- datahenon[datahenon$noiselevel=='0.5',]
+data4 <- datahenon4 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE))
+data4 %>% 
+  ggplot() +
+  aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+  geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+
+  scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+
+  scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+
+  xlab('True synchrony')+scale_x_discrete('True synchrony',labels=c('low','avg','high'))+ylim(0,115)
+
+```
+Excluding mutual information:
+
+'noiselevel' is 0.2:
+
+```{r}
+datahenon3 <- datahenon2[datahenon2$noiselevel=='0.2',]
+data3 <- datahenon3 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE))
+data3 %>% 
+  ggplot() +
+  aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+  geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+
+  scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple','orange'),name='Synchrony method')+
+  scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted",'solid'),name='Synchrony method')+
+  xlab('True synchrony')+scale_x_discrete('True synchrony',labels=c('low','avg','high'))
+```
+'noiselevel' is 0.5:
+
+```{r}
+datahenon4 <- datahenon2[datahenon2$noiselevel=='0.5',]
+data4 <- datahenon4 %>% 
+  group_by(synchr_method,true_synchrony) %>% 
+  summarise(y_mean = mean(MSE))
+data4 %>% 
+   ggplot() +
+  aes(x = true_synchrony, y = y_mean, group = synchr_method) +
+  geom_line(aes(color = synchr_method,linetype=synchr_method))+
+  ylab('Mean of MSEs')+
+  scale_color_manual(values=c('black','green','hotpink','red','red','red','blue','purple','purple','purple'),name='Synchrony method')+
+  scale_linetype_manual(values = c("solid", "solid","solid","solid","dashed","dotted","solid","solid","dashed","dotted"),name='Synchrony method')+
+  xlab('True synchrony')+scale_x_discrete('True synchrony',labels=c('low','avg','high'))
+
+```
+Appendix:
+```{r}
+colnames(datahenon)[1:7] <- c('synchrony_method','true_synchrony','bd','time_lag','time_length','noise_level', 'noise_type')
+Sevenway <- anova_test(
+  data = datahenon, dv = MSE, wid = id,
+  between = c(true_synchrony,bd,time_lag,time_length,noise_level,noise_type), within = synchrony_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,Sevenway$ANOVA$DFn
+,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+print(xtable(effects, type = "latex"), file = "MSEhmu.tex",include.rownames = F)
+
+```

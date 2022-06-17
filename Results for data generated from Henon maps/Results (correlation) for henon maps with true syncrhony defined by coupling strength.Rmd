@@ -1,0 +1,187 @@
+---
+title: "Results (correlation) for henon maps with true synchrony defined by coupling strength"
+author: "Yuying Tan"
+date: "3/28/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r,include=FALSE}
+library(maditr)
+load('datahenon.RData')
+library(Johnson)
+library(rstatix)
+library(ggpubr)
+library(tidyverse)
+```
+
+The true synchrony is defined as the values of the coupling strength.
+
+
+# General results
+Coherence performs well.
+
+```{r}
+datahenon %>%
+  group_by(synchr_method) %>%
+  summarise(mean_correlation=mean(correlation)) %>%
+  arrange(desc(mean_correlation))
+
+```
+
+# Overall influnece of data characteristics
+'true_synchrony' affects all the synchrony methods, but for phase synchrony and coherence, there is significant difference between all the synchrony levels. For other methods, there is no significant difference between high and average synchrony level.
+'bd' affects all the synchrony methods.
+'tlag' influences phase synchrony most.
+'timelength' influences all the synchrony methods.
+'noiselevel' influences all the synchrony methods.
+All synchrony methods except phase synchrony are influenced significantly by 'noisetype'.
+
+```{r}
+maineffects_truesynchrony <- datahenon %>%
+  group_by(synchr_method,true_synchrony)  %>%
+  summarise(mean_correlation=mean(correlation))
+
+maineffects_bd <- datahenon %>%
+  group_by(synchr_method,bd)  %>%
+  summarise(mean_correlation=mean(correlation))
+
+maineffects_tlag <- datahenon %>%
+  group_by(synchr_method,tlag)  %>%
+  summarise(mean_correlation=mean(correlation))
+
+maineffects_timelength <- datahenon %>%
+  group_by(synchr_method,timelength)  %>%
+  summarise(mean_correlation=mean(correlation))
+
+maineffects_noiselevel <- datahenon %>%
+  group_by(synchr_method,noiselevel)  %>%
+  summarise(mean_correlation=mean(correlation))
+
+maineffects_noisetype <- datahenon %>%
+  group_by(synchr_method,noisetype)  %>%
+  summarise(mean_correlation=mean(correlation))
+colnames(maineffects_bd)[2] <- 'level'
+colnames(maineffects_truesynchrony)[2] <- 'level'
+colnames(maineffects_timelength)[2] <- 'level'
+colnames(maineffects_noiselevel)[2] <- 'level'
+colnames(maineffects_noisetype)[2] <- 'level'
+colnames(maineffects_tlag)[2] <- 'level'
+
+maineffects <- rbind(maineffects_truesynchrony,maineffects_bd,maineffects_tlag,maineffects_timelength,maineffects_noiselevel,maineffects_noisetype)
+a <- dcast(maineffects, level ~  synchr_method)
+factor <- c('true_synchrony','true_synchrony','true_synchrony','bd','bd','tlag','tlag','timelength','timelength','noiselevel','noiselevel','noisetype','noisetype')
+a <- cbind(factor,a)
+a
+```
+# Mixed ANOVA
+```{r}
+hist(datahenon$correlation,main='Correlation')
+```
+
+```{r}
+datahenon1 <- datahenon
+c1 <- datahenon1$correlation
+c2 <- -c1+max(c1)+1 # to transform correlation to non-negative
+c <- RE.Johnson(c2)
+c3 <- c()
+for (i in 1:length(c[[4]])) {
+  c3[i] <- c[[4]][i]
+}
+datahenon1$cor_trans <- c3 
+
+```
+
+```{r}
+hist(datahenon1$cor_trans, main='Transformed correlation')
+```
+
+Normality for correlation and transformed correlation:
+
+```{r,echo=F}
+ggqqplot(datahenon1, "correlation", ggtheme = theme_bw()) +
+  facet_grid(bd ~ synchr_method, labeller = "label_both")
+ggqqplot(datahenon1, "cor_trans", ggtheme = theme_bw()) +
+  facet_grid(bd ~ synchr_method, labeller = "label_both")
+```
+
+Results for Levene's test before transformation:
+
+```{r}
+datahenon1 %>%
+  group_by(synchr_method) %>%
+  levene_test(correlation~bd*true_synchrony*noisetype*tlag*timelength*noiselevel)
+```
+
+Results for Levene's test after transformation:
+
+```{r}
+datahenon1 %>%
+  group_by(synchr_method) %>%
+  levene_test(cor_trans~bd*true_synchrony*noisetype*tlag*timelength*noiselevel)
+```
+
+Significant effects with generalized effect size greater than 0.1 are discussed.
+```{r}
+Sevenway <- anova_test(
+  data = datahenon1, dv = cor_trans, wid = id,
+  between = c(true_synchrony,bd,tlag,timelength,noiselevel,noisetype), within = synchr_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,Sevenway$ANOVA$DFn
+,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+effects[1:18,]
+
+```
+
+
+# Interpretation 
+### Interaction between 'true_synchrony' and 'bd'
+```{r}
+datahenon[,2]<-factor(datahenon[,2],levels=c('rlow','ravg',"rhigh"))
+datahenon$timelength <- factor(datahenon$timelength,levels=c('1006','10054'))
+datahenon$synchr_method <- factor(datahenon$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'))
+datahenon$synchr_method <- factor(datahenon$synchr_method,levels=c('coherence','phasesynchrony','Kullback','Renyi01','Renyi05','Renyi09','JensenShannon','JensenRenyi2','JensenRenyi6','JensenRenyi10','mutual_information'),labels=c('coherence','phase synchrony','KL','R(01)','R(05)','R(09)','JS','JR(2)','JR(6)','JR(10)','MI'))
+```
+```{r}
+data1 <- datahenon1 %>% 
+  group_by(true_synchrony,bd) %>% 
+  summarise(y_mean = mean(correlation))
+data1 %>% 
+  ggplot() +
+  aes(x = bd, y = y_mean, color = true_synchrony) +
+  geom_line(aes(group = true_synchrony))+ylab('Mean of correlations')+ylim(-0.2,1)+xlab('b and d')+scale_x_discrete('b and d',labels=c('0.3 and 0.1','0.3 and 0.3'))+scale_color_manual(values=c('black','tomato2','tomato4','red','blue','hotpink1','orange','purple','pink','green','tomato4'),name='True synchrony',labels=c('low','avg','high'),breaks=c('rlow','ravg','rhigh'))
+#data1 %>%
+  #ggplot() +
+#  aes(x = true_synchrony, y = y_mean, color = bd) +
+ # geom_line(aes(group = bd))
+
+```
+Appendix:
+```{r}
+colnames(datahenon1)[1:7] <- c('synchrony_method','true_synchrony','bd','time_lag','time_length','noise_level', 'noise_type')
+Sevenway <- anova_test(
+  data = datahenon1, dv = cor_trans, wid = id,
+  between = c(true_synchrony,bd,time_lag,time_length,noise_level,noise_type), within = synchrony_method)
+effects_table <- cbind(get_anova_table(Sevenway)$Effect,Sevenway$ANOVA$DFn,get_anova_table(Sevenway)[,4],get_anova_table(Sevenway)$p,get_anova_table(Sevenway)$ges)
+pvalue <- as.numeric(effects_table[,4])
+ges <- as.numeric(effects_table[,5])
+DF <- as.numeric(effects_table[,2])
+Fvalue <- as.numeric(effects_table[,3]) 
+effects_table <- data.frame(effects_table[,1],DF,Fvalue,pvalue,ges)
+colnames(effects_table)[1] <- 'effects'
+effects <- effects_table%>%
+  arrange(desc(ges))
+print(xtable(effects, type = "latex"), file = "Cormu.tex",include.rownames = F)
+```
