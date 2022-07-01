@@ -1,3 +1,4 @@
+# Run this file after generating the data by running the other two files in this folder
 timelength_sets <- c(1006,10054)
 bd_sets <- c('33','31')
 noiselevel_sets <- c(0.2,0.5)
