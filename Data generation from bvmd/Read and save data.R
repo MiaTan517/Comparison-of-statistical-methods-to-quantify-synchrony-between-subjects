@@ -1,3 +1,5 @@
+# Run this file after generating the data by running the other two R files in this folder
+
 timelength_sets <- c(1006,10054)
 kappavalue_sets <- c(0.5,1,2)
 kappa_sets <- c(0.5,1,2)
