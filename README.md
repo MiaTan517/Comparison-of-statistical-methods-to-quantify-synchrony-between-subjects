@@ -2,7 +2,7 @@
 
 This repository contains the R code for the master thesis project.
 
-For data generation: first run the files for generating the data, and then run the files 'Read and save data' to aggregate the data into one dataset. datahenon.RData and bvmd.RData are obtained . 
+For data generation: first run the files for generating the data, and then run the files 'Read and save data' to integrate the data into one dataset. datahenon.RData and bvmd.RData are obtained . 
 
 datahenon.RData is generated from Hénon maps, and it is used to reproduce the results of data generated from Hénon maps. 
 bvmddata.RData is generated from the bivariate von Mises distribution, and it is for reproducing the results of data generated from the bivariate von Mises distribution. 
